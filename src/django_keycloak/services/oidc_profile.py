@@ -19,6 +19,10 @@ import django_keycloak.services.realm
 
 logger = logging.getLogger(__name__)
 
+options = {
+        'verify_aud': False
+    }
+
 
 def get_openid_connect_profile_model():
     """
@@ -68,7 +72,8 @@ def get_or_create_from_id_token(client, id_token):
         key=client.realm.certs,
         algorithms=client.openid_api_client.well_known[
             'id_token_signing_alg_values_supported'],
-        issuer=issuer
+        issuer=issuer,
+        options=options
     )
 
     return update_or_create_user_and_oidc_profile(
@@ -94,6 +99,7 @@ def update_or_create_user_and_oidc_profile(client, id_token_object):
                 }
             )
 
+
         UserModel = get_remote_user_model()
         oidc_profile.user = UserModel(id_token_object)
 
@@ -110,7 +116,6 @@ def update_or_create_user_and_oidc_profile(client, id_token_object):
                 'last_name': id_token_object.get('family_name', '')
             }
         )
-
         oidc_profile, _ = OpenIdConnectProfileModel.objects.update_or_create(
             sub=id_token_object['sub'],
             defaults={
@@ -164,7 +169,8 @@ def update_or_create_from_code(code, client, redirect_uri):
     initiate_time = timezone.now()
     token_response = client.openid_api_client.authorization_code(
         code=code, redirect_uri=redirect_uri)
-
+    
+    
     return _update_or_create(client=client, token_response=token_response,
                              initiate_time=initiate_time)
 
@@ -219,7 +225,9 @@ def _update_or_create(client, token_response, initiate_time):
         key=client.realm.certs,
         algorithms=client.openid_api_client.well_known[
             'id_token_signing_alg_values_supported'],
-        issuer=issuer
+        issuer=issuer,
+        options=options,
+        **token_response
     )
 
     oidc_profile = update_or_create_user_and_oidc_profile(
@@ -309,6 +317,23 @@ def get_entitlement(oidc_profile):
         })
     return rpt_decoded
 
+def get_permissions(oidc_profile):
+    """
+    Get permissions.
+    
+    http://www.keycloak.org/docs/latest/authorization_services/index.html#_service_entitlement_api
+    
+    :param django_keycloak.models.KeycloakOpenIDProfile oidc_profile:
+    :rtype: dict
+    :return: Decoded RPT
+    """
+    access_token = get_active_access_token(oidc_profile=oidc_profile)
+
+    rpt_decoded = oidc_profile.realm.client.authz_api_client.get_permissions(
+        token=access_token)
+
+    return rpt_decoded
+
 
 def get_decoded_jwt(oidc_profile):
     """
@@ -324,5 +349,6 @@ def get_decoded_jwt(oidc_profile):
         token=active_access_token,
         key=client.realm.certs,
         algorithms=client.openid_api_client.well_known[
-            'id_token_signing_alg_values_supported']
+            'id_token_signing_alg_values_supported'],
+        options=options
     )

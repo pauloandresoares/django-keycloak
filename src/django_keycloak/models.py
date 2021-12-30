@@ -120,6 +120,14 @@ class Client(models.Model):
         """
         import django_keycloak.services.client
         return django_keycloak.services.client.get_uma1_client(client=self)
+    
+    @cached_property
+    def uma2_api_client(self):
+        """
+        :rtype: keycloak.uma1.KeycloakUMA1
+        """
+        import django_keycloak.services.client
+        return django_keycloak.services.client.get_uma2_client(client=self)
 
     def __str__(self):
         return self.client_id
@@ -182,7 +190,10 @@ class OpenIdConnectProfileAbstract(TokenModelAbstract):
             token=self.access_token,
             key=client.realm.certs,
             algorithms=client.openid_api_client.well_known[
-                'id_token_signing_alg_values_supported']
+                'id_token_signing_alg_values_supported'],
+            options={
+                'verify_aud': False
+            },
         )
 
 

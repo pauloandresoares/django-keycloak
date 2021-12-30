@@ -34,7 +34,7 @@ class KeycloakAuthorizationBase(object):
         return None
 
     def get_all_permissions(self, user_obj, obj=None):
-        if not user_obj.is_active or user_obj.is_anonymous or obj is not None:
+        if not user_obj.is_active or user_obj.is_anonymous:
             return set()
         if not hasattr(user_obj, '_keycloak_perm_cache'):
             user_obj._keycloak_perm_cache = self.get_keycloak_permissions(
@@ -46,7 +46,7 @@ class KeycloakAuthorizationBase(object):
             return set()
 
         rpt_decoded = django_keycloak.services.oidc_profile\
-            .get_entitlement(oidc_profile=user_obj.oidc_profile)
+            .get_permissions(oidc_profile=user_obj.oidc_profile)
 
         if settings.KEYCLOAK_PERMISSIONS_METHOD == 'role':
             return [
@@ -57,11 +57,11 @@ class KeycloakAuthorizationBase(object):
             ]
         elif settings.KEYCLOAK_PERMISSIONS_METHOD == 'resource':
             permissions = []
-            for p in rpt_decoded['authorization'].get('permissions', []):
+            for p in rpt_decoded.get('permissions', []):
                 if 'scopes' in p:
                     for scope in p['scopes']:
-                        if '.' in p['resource_set_name']:
-                            app, model = p['resource_set_name'].split('.', 1)
+                        if '.' in p['rsname']:
+                            app, model = p['rsname'].split('.', 1)
                             permissions.append('{app}.{scope}_{model}'.format(
                                 app=app,
                                 scope=scope,
@@ -70,10 +70,10 @@ class KeycloakAuthorizationBase(object):
                         else:
                             permissions.append('{scope}_{resource}'.format(
                                 scope=scope,
-                                resource=p['resource_set_name']
+                                resource=p['rsname']
                             ))
                 else:
-                    permissions.append(p['resource_set_name'])
+                    permissions.append(p['rsname'])
 
             return permissions
         else:
@@ -88,6 +88,12 @@ class KeycloakAuthorizationBase(object):
             return False
 
         granted_perms = self.get_all_permissions(user_obj, obj)
+        
+        # get the scope and add
+        if obj is not None and hasattr(obj, 'keycloak_resource_name'):
+            scope = perm.split('.')[-1].split('_')[0]
+            perm = f'{scope}_{obj.keycloak_resource_name}'
+        
         return perm in granted_perms
 
 

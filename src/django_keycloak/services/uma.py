@@ -1,5 +1,6 @@
 from django.apps.registry import apps
 from django.utils.text import slugify
+from django.conf import settings
 
 from keycloak.exceptions import KeycloakClientError
 
@@ -31,7 +32,7 @@ def synchronize_resources(client, app_config):
     if not app_config.models_module:
         return
 
-    uma1_client = client.uma1_api_client
+    uma2_client = client.uma2_api_client
 
     access_token = django_keycloak.services.client.get_access_token(
         client=client
@@ -41,7 +42,7 @@ def synchronize_resources(client, app_config):
         scopes = _get_all_permissions(klass._meta)
 
         try:
-            uma1_client.resource_set_create(
+            uma2_client.resource_set_create(
                 token=access_token,
                 name=klass._meta.label_lower,
                 type='urn:{client}:resources:{model}'.format(
@@ -50,6 +51,7 @@ def synchronize_resources(client, app_config):
                 ),
                 scopes=scopes
             )
+            
         except KeycloakClientError as e:
             if e.original_exc.response.status_code != 409:
                 raise

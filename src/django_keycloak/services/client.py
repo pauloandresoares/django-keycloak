@@ -58,6 +58,12 @@ def get_uma1_client(client):
     """
     return client.realm.realm_api_client.uma1
 
+def get_uma2_client(client):
+    """
+    :type client: django_keycloak.models.Client
+    :rtype: keycloak.uma2.KeycloakUMA2
+    """
+    return client.realm.realm_api_client.uma2
 
 def get_admin_client(client):
     """
